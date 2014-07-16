@@ -1,0 +1,89 @@
+#!/usr/bin/lua
+
+--------------------------------------------------------------------------------
+-- igoolec: deploys igoole apps
+-- This file is a part of igoole project
+-- License: MIT
+-- http://igooleproject.org
+--------------------------------------------------------------------------------
+
+local lfs = require "lfs"
+
+local function help()
+	print("\n\t\27[31mUsage:\27[0m\n")
+	print("\t\tigoolec <app name> {<dir>} - Generates web files in a directory.")
+	print("\t\t   <app name>: The name of your application.")
+	print("\t\t   <dir>: Optional. The directory you wish your files to be created or current dir.\n")
+	print("\n\t\27[31mExample:\27[0m\n")
+	print("\t\tigoolec 'Hey Arnold' /var/www")
+	print("\t\t   This will create your web app under /var/www/hey_arnold.\n")
+end
+
+local function get_igoole_path(current_dir)
+	local igoole_path = ((debug.getinfo(1).source):match("^@?(.-)/igoolec$"))
+
+	local f = igoole_path and io.open(igoole_path.."/src/igoole.lua", "r")
+	if not f then 
+		local datafile = require("datafile")
+		igoole_path = datafile.path("igoole/cookie.lua"):match("^@?(.-)/igoole/cookie.lua$")
+	else
+		f:close() 
+		if igoole_path == '.' then
+			igoole_path = current_dir.."/src"
+		elseif igoole_path:match("^.") then
+			local path = igoole_path:match(".(.-)")
+			igoole_path = current_dir.."/igoole"..tostring(path).."/src"
+		elseif not igoole_path:match("^/") then 
+			igoole_path = current_dir.."/src/"..igoole_path 
+		else
+			igoole_path = igoole_path.."/src"
+		end
+	end
+	return igoole_path
+end
+
+local function error()
+	print("\27[33mError generating igoole web app.\27[0m ")
+	print("Please report to developers.")
+end
+
+local function create()
+	local name = string.gsub(arg[1]:lower(),' ','_')
+	local current_dir = lfs.currentdir()
+	local destiny = arg[2] or current_dir 
+	
+	local igoole_path = get_igoole_path(current_dir)
+	
+	local raw_app = igoole_path.."/igoole/demo-app"
+	local new_app = destiny.."/"..name
+	os.execute("cp -a "..raw_app.." "..new_app)
+
+	local htaccess = io.open (new_app.."/.htaccess" , "r")
+	local src = htaccess:read("*a")
+	htaccess:close()
+
+	htaccess = io.open (new_app.."/.htaccess" , "w")
+	src = string.gsub(src,"{{path}}",igoole_path)
+	htaccess:write(src)
+	htaccess:close()
+
+	local conf = io.open (new_app.."/conf/conf.lua" , "r")
+	src = conf:read("*a")
+	conf:close()
+	conf = io.open (new_app.."/conf/conf.lua" , "w")
+	src = string.gsub(src,"igoole! A Lua MVC Framework",arg[1])
+	conf:write(src)
+	conf:close()
+
+	print("done!")
+end
+
+local function run()
+	if not arg[1] or arg[1] == '--help' or arg[1] == '-h' then
+		help()
+	else
+		create()
+	end
+end
+
+run()

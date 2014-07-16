@@ -1,0 +1,44 @@
+upstream igoole {
+    server unix:/home/igoole/run/fastcgi_l51.sock;
+    server unix:/home/igoole/run/fastcgi_l52.sock;
+}
+
+server {
+    listen 80;
+    server_name igoole;
+    root /home/igoole/www;
+    access_log  /home/igoole/log/nginx.access.log;
+    error_log   /home/igoole/log/nginx.error.log;
+    charset     utf-8;
+
+    # Forbid serving .ht* .svn* .git* files or directories
+    location ~* /\. {
+        access_log off;
+        log_not_found off;
+        try_files "" @igoole;
+    }
+
+    location / {
+        index       index.php;
+        try_files $uri @igoole;
+    }
+
+    location @igoole {
+        # Include common fastcgi params
+        include fastcgi_params;
+
+        # General fastcgi params
+        fastcgi_pass  igoole;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+
+        # Additional fastcgi params to avoid random 503 errors from nginx
+        fastcgi_connect_timeout 60;
+        fastcgi_send_timeout 180;
+        fastcgi_read_timeout 180;
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 4 256k;
+        fastcgi_busy_buffers_size 256k;
+        fastcgi_temp_file_write_size 256k;
+        fastcgi_intercept_errors on;
+    }
+}

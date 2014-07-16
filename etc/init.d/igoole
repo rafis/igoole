@@ -1,0 +1,106 @@
+#! /bin/bash
+ 
+### BEGIN INIT INFO
+# Provides: spawn-fcgi
+# Required-Start: $all
+# Required-Stop: $all
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: starts FastCGI
+# Description: starts FastCGI with spawn-fcgi
+### END INIT INFO
+ 
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+NAME=igoole
+
+INTERPRETER[0]=/usr/bin/lua5.1
+PID[0]=/home/igoole/run/spawn-fcgi_l51.pid
+SOCKET[0]=/home/igoole/run/fastcgi_l51.sock
+CHILDS[0]=2
+
+INTERPRETER[1]=/usr/bin/lua5.2
+PID[1]=/home/igoole/run/spawn-fcgi_l52.pid
+SOCKET[1]=/home/igoole/run/fastcgi_l52.sock
+CHILDS[1]=2
+
+DIR=/home/igoole/bin
+DAEMON=/usr/bin/spawn-fcgi
+for (( i=0; i<${#PID[@]}; i++ ))
+do
+    DAEMON_OPTS[i]="-n -s ${SOCKET[i]} -d $DIR -M 664 -u igoole -g igoole -P ${PID[i]} -- /usr/bin/multiwatch -f ${CHILDS[i]} -- ${INTERPRETER[i]} /usr/bin/igoole.fcgi"
+done
+
+. /lib/lsb/init-functions
+     
+test -x $DAEMON || exit 0
+ 
+set -e
+
+start_service()
+{
+    for (( i=0; i<${#PID[@]}; i++ ))
+    do
+        if [ -f ${PID[i]} ]
+        then
+            echo "$PID exists, process is already running or crashed"
+        else
+	    log_daemon_msg "spawn-fcgi starting"
+            start-stop-daemon --start --background --pidfile ${PID[i]} --make-pidfile --exec $DAEMON -- ${DAEMON_OPTS[i]}
+            echo "done."
+	fi
+    done
+}
+
+stop_service()
+{
+    for (( i=0; i<${#PID[@]}; i++ ))
+    do
+
+        if [ ! -f ${PID[i]} ]
+        then
+            echo "${PID[i]} does not exist, process is not running"
+        else
+            log_daemon_msg "spawn-fcgi stopping"
+            start-stop-daemon --stop $1 --pidfile ${PID[i]} --retry 5
+            rm -f ${PID[i]}
+            echo "done."
+        fi
+    done
+}
+ 
+case "$1" in
+    start)
+        start_service
+        ;;
+    test)
+        log_daemon_msg "spawn-fcgi starting"
+        start-stop-daemon --test --start --pidfile ${PID[0]} --exec $DAEMON -- ${DAEMON_OPTS[0]}
+	echo "done."
+	;;
+    stop)
+	stop_service
+	;;
+    restart)
+	stop_service "--oknodo"
+	sleep 1
+	start_service
+	;;
+    reload)
+	echo "Reloading $NAME: "
+        for (( i=0; i<${#PID[@]}; i++ ))
+        do
+	    for child in $(pgrep -P $(cat ${PID[i]})); do
+    		echo "Reloading child $child"
+    		kill -USR1 $child
+    	        sleep 1
+	    done
+	done
+	echo "done..."
+	;;
+    *)
+	echo "Usage: sudo service $NAME {start|stop|restart|reload|test}" >&2
+	exit 1
+	;;
+esac
+ 
+exit 0
