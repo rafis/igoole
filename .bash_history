@@ -99,3 +99,12 @@ git pull
 git branch
 git branch --set-upstream-to=origin/master master
 git pull
+crontab -e
+git status
+mc
+./util/autocommit.sh
+git status
+git push origin master
+git rebase -i --root
+git rebase --continue
+git push -f
